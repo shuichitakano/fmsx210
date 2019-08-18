@@ -7,6 +7,7 @@ if (NOT TOOL_CHAIN)
 endif()
 
 get_filename_component(SDK_ROOT "third_party/kendryte-standalone-sdk" ABSOLUTE)
+set(FMSX_ROOT "third_party/fMSX54")
 
 set(BUILDING_SDK "yes" CACHE INTERNAL "")
 
@@ -18,11 +19,26 @@ header_directories(${SDK_ROOT}/lib)
 
 add_subdirectory(${SDK_ROOT}/lib)
 
-include_directories(.)
-add_subdirectory(sd_card)
+include_directories(
+    .
+    ${FMSX_ROOT}/Z80
+    ${FMSX_ROOT}/EMULib
+    ${FMSX_ROOT}/fMSX
+    )
+    
+add_definitions(
+    -DBPS16 -DBPP16 -DUNIX -DLSB_FIRST
+    )
 
-add_source_files(main.cpp)
+add_subdirectory(sd_card)
+add_subdirectory(${FMSX_ROOT})
+
+add_source_files(
+    main.cpp
+    fmsx_interface.c
+    std_file.cpp
+    )
 
 include(${SDK_ROOT}/cmake/executable.cmake)
 
-target_link_libraries(${PROJ} sd_card)
+target_link_libraries(${PROJ} sd_card fmsxlib)
