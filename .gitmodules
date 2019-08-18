@@ -1,3 +1,4 @@
 [submodule "third_party/kendryte-standalone-sdk"]
 	path = third_party/kendryte-standalone-sdk
-	url = https://github.com/kendryte/kendryte-standalone-sdk.git
+	url = https://github.com/shuichitakano/kendryte-standalone-sdk.git
+	

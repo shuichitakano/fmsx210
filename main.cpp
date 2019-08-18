@@ -13,6 +13,8 @@
 #include <sd_card/ff.h>
 #include <sd_card/sdcard.h>
 
+#include "fmsx_interface.h"
+
 // kflash -b 1500000 -p /dev/cu.wchusbserial1410 -t fmsx210.bin
 
 void sd_test()
@@ -67,6 +69,17 @@ int main()
     register_core1(core1_function, NULL);
 
     sd_test();
+
+#if 0
+    auto fp = fopen("boot.py_", "rb");
+    printf("fp = %p\n", fp);
+    char buf[1024] = {};
+    auto readSize = fread(buf, 1, sizeof(buf), fp);
+    printf("read size = %d, str = '%s'\n", (int)readSize, buf);
+    fclose(fp);
+#endif
+
+    start_fMSX();
 
     while (1)
         ;
