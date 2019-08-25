@@ -37,6 +37,8 @@ add_source_files(
     main.cpp
     fmsx_interface.c
     std_file.cpp
+    lcd.cpp
+    audio.cpp
     )
 
 include(${SDK_ROOT}/cmake/executable.cmake)
