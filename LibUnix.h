@@ -18,7 +18,7 @@ extern "C"
 #define SND_BITS 8
 #define SND_BUFSIZE (1 << SND_BITS)
 
-#define PIXEL(R, G, B) (pixel)(((31 * (R) / 255) << 11) | ((63 * (G) / 255) << 5) | (31 * (B) / 255))
+#define PIXEL(R, G, B) (pixel)(((32 * (R) >> 8) << 11) | ((64 * (G) >> 8) << 5) | (32 * (B) >> 8))
 #define PIXEL2MONO(P) (522 * (((P)&31) + (((P) >> 5) & 63) + (((P) >> 11) & 31)) >> 8)
 #define RMASK 0xF800
 #define GMASK 0x07E0

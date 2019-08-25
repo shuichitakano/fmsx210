@@ -15,6 +15,10 @@
 
 extern "C"
 {
+    namespace
+    {
+    constexpr const char *TAG = "STDFILE";
+
     constexpr int FD_OFFSET = 1024;
     constexpr int MAX_FILES = 8;
 
@@ -31,6 +35,8 @@ extern "C"
                 return i + FD_OFFSET;
             }
         }
+        LOGV(TAG, "file overflow");
+
         return -1;
     }
 
@@ -44,40 +50,39 @@ extern "C"
     {
         return &files_[fp - FD_OFFSET];
     }
-
-    constexpr const char *TAG = "STDFILE";
+    } // namespace
 
     int
     sys_file_open(const char *name, int flags, int mode)
     {
-        LOGV(TAG, "open(%s, %d, %d)", name, flags, mode);
+        //        LOGV(TAG, "open(%s, %d, %d)", name, flags, mode);
 
         int ffmode = 0;
         if ((flags & 3) == O_RDONLY)
         {
-            LOGV(TAG, " read only.\n");
+            //            LOGV(TAG, " read only.\n");
             ffmode |= FA_READ;
         }
         if ((flags & 3) == O_WRONLY)
         {
-            LOGV(TAG, " write only.\n");
+            //            LOGV(TAG, " write only.\n");
             ffmode |= FA_WRITE;
         }
         if ((flags & 3) == O_RDWR)
         {
-            LOGV(TAG, " read/write.\n");
+            //            LOGV(TAG, " read/write.\n");
             ffmode |= FA_READ | FA_WRITE;
         }
 
         if (flags & O_CREAT)
         {
-            LOGV(TAG, " create.\n");
+            //            LOGV(TAG, " create.\n");
             ffmode |= FA_CREATE_NEW;
         }
 
         if (flags & O_TRUNC)
         {
-            LOGV(TAG, " trunc.\n");
+            //            LOGV(TAG, " trunc.\n");
             ffmode |= FA_CREATE_ALWAYS;
         }
 
@@ -129,7 +134,7 @@ extern "C"
     long
     sys_file_stat(const char *name, struct stat *st)
     {
-        LOGV(TAG, "file_stat(%s, %p)", name, st);
+        //        LOGV(TAG, "file_stat(%s, %p)", name, st);
         FILINFO fi;
         if (f_stat(name, &fi) != FR_OK)
         {
@@ -151,7 +156,7 @@ extern "C"
     int
     sys_file_close(int file)
     {
-        LOGV(TAG, "file_close(%d)\n", file);
+        //        LOGV(TAG, "file_close(%d)\n", file);
 
         f_close(getFile(file));
         freeFile(file);

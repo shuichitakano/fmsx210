@@ -9,13 +9,33 @@
 #include <bsp.h>
 #include <spi.h>
 #include <fpioa.h>
+#include <sysctl.h>
+#include <i2s.h>
+#include <gpio.h>
+#include "audio.h"
 
 #include <sd_card/ff.h>
 #include <sd_card/sdcard.h>
 
+#include "lcd.h"
+
 #include "fmsx_interface.h"
 
 // kflash -b 1500000 -p /dev/cu.wchusbserial1410 -t fmsx210.bin
+
+#define LCD_SPI_CH SPI_DEVICE_0
+#define LCD_DMA_CH DMAC_CHANNEL3
+#define LCD_RST_PIN 37
+#define LCD_DCX_PIN 38
+#define LCD_SS_PIN 36
+#define LCD_SCLK_PIN 39
+#define LCD_RST_GPIONUM 6
+#define LCD_DCX_GPIONUM 7
+#define LCD_SS 3
+
+#define AUDIO_ENABLE_PIN 32 // MAIX GO
+//#define AUDIO_ENABLE_PIN 2  // MAIXDUINO
+#define AUDIO_ENABLE_GPIONUM 5
 
 void sd_test()
 {
@@ -54,6 +74,19 @@ void sd_test()
     f_closedir(&dj);
 }
 
+void initI2S()
+{
+    sysctl_pll_set_freq(SYSCTL_PLL2, 45158400UL);
+
+    fpioa_set_function(AUDIO_ENABLE_PIN,
+                       (fpioa_function_t)(FUNC_GPIO0 + AUDIO_ENABLE_GPIONUM));
+    gpio_set_drive_mode(AUDIO_ENABLE_GPIONUM, GPIO_DM_OUTPUT);
+    gpio_set_pin(AUDIO_ENABLE_GPIONUM, GPIO_PV_HIGH);
+
+    initAudio(44100);
+    //initAudio(22050);
+}
+
 int core1_function(void *ctx)
 {
     uint64_t core = current_coreid();
@@ -64,11 +97,30 @@ int core1_function(void *ctx)
 
 int main()
 {
+    sysctl_pll_set_freq(SYSCTL_PLL0, 800000000);
+    printf("hello.\n");
+
     uint64_t core = current_coreid();
     printf("Core %ld Hello world\n", core);
     register_core1(core1_function, NULL);
 
     sd_test();
+
+    sysctl_set_spi0_dvp_data(1);
+
+    LCD &lcd = LCD::instance();
+    lcd.init(LCD_SPI_CH, LCD_DMA_CH, 20000000,
+             LCD_RST_PIN, LCD_RST_GPIONUM,
+             LCD_DCX_PIN, LCD_DCX_GPIONUM,
+             LCD_SS_PIN, LCD_SS,
+             LCD_SCLK_PIN);
+
+    lcd.setDirection(LCD::DIR_XY_RLDU);
+
+    //    lcd.clear(0xfd20);
+    lcd.clear(0);
+
+    initI2S();
 
 #if 0
     auto fp = fopen("boot.py_", "rb");

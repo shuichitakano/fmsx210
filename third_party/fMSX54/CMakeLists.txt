@@ -2,9 +2,11 @@ cmake_minimum_required(VERSION 3.0)
 
 add_definitions(
     -DBPP16 -DUNIX
+#    -DCONDEBUG
     -Werror=unused-const-variable=0
     -Werror=format-overflow=0
     -Wno-unused-but-set-variable
+    -Wno-error=stringop-truncation
 )
 
 add_library(fmsxlib
