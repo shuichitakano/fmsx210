@@ -13,6 +13,8 @@
 #include <i2s.h>
 #include <gpio.h>
 #include "audio.h"
+#include "video_out.h"
+#include "chrono.h"
 
 #include <sd_card/ff.h>
 #include <sd_card/sdcard.h>
@@ -84,25 +86,15 @@ void initI2S()
     gpio_set_pin(AUDIO_ENABLE_GPIONUM, GPIO_PV_HIGH);
 
     initAudio(44100);
-    //initAudio(22050);
-}
-
-int core1_function(void *ctx)
-{
-    uint64_t core = current_coreid();
-    printf("Core %ld Hello world\n", core);
-    while (1)
-        ;
 }
 
 int main()
 {
+    //    auto cpuFreq = sysctl_cpu_set_freq(600000000);
     sysctl_pll_set_freq(SYSCTL_PLL0, 800000000);
-    printf("hello.\n");
+    //    printf("hello.\n");
 
-    uint64_t core = current_coreid();
-    printf("Core %ld Hello world\n", core);
-    register_core1(core1_function, NULL);
+    initChrono();
 
     sd_test();
 
@@ -116,20 +108,18 @@ int main()
              LCD_SCLK_PIN);
 
     lcd.setDirection(LCD::DIR_XY_RLDU);
-
-    //    lcd.clear(0xfd20);
     lcd.clear(0);
 
     initI2S();
 
-#if 0
-    auto fp = fopen("boot.py_", "rb");
-    printf("fp = %p\n", fp);
-    char buf[1024] = {};
-    auto readSize = fread(buf, 1, sizeof(buf), fp);
-    printf("read size = %d, str = '%s'\n", (int)readSize, buf);
-    fclose(fp);
-#endif
+    if (1)
+    {
+        initVideo(390000000 * 2, 390000000 / 18, 228 * 2,
+                  272 * 4, 228);
+        //setInterlaceMode(true);
+        startVideoTransfer();
+        setFMSXVideoOutMode(VIDEOOUTMODE_COMPOSITE_VIDEO);
+    }
 
     start_fMSX();
 

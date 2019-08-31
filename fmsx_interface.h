@@ -10,6 +10,14 @@ extern "C"
 {
 #endif
 
+    typedef enum
+    {
+        VIDEOOUTMODE_LCD,
+        VIDEOOUTMODE_COMPOSITE_VIDEO,
+    } VideoOutMode;
+
+    void setFMSXVideoOutMode(VideoOutMode m);
+
     int start_fMSX();
 
 #ifdef __cplusplus

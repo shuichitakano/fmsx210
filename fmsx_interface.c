@@ -12,12 +12,19 @@
 #include <sound.h>
 #include "lcd.h"
 #include "audio.h"
+#include "video_out.h"
 
 #include <sysctl.h>
 #include <encoding.h> // read_cycle()
 
 #define WIDTH 272  /* Buffer width    */
 #define HEIGHT 228 /* Buffer height   */
+
+static VideoOutMode videoOutMode = VIDEOOUTMODE_LCD;
+void setFMSXVideoOutMode(VideoOutMode m)
+{
+  videoOutMode = m;
+}
 
 static Image NormScreen;
 static Image WideScreen;
@@ -115,7 +122,8 @@ int InitMachine(void)
 
   InitSound(44100, 150);
   int SndSwitch = (1 << MAXCHANNELS) - 1;
-  int SndVolume = 2;
+  //  int SndVolume = 2;
+  int SndVolume = 100;
   SetChannels(SndVolume, SndSwitch);
 
   return 1;
@@ -149,21 +157,44 @@ int ShowVideo(void)
 {
   const Image *img = VideoImg;
   if (!img)
-    return 1;
-
-  while (1)
   {
+    return 1;
+  }
+
+  if (videoOutMode == VIDEOOUTMODE_LCD)
+  {
+    while (1)
+    {
+      uint64_t cy = read_cycle();
+      uint64_t delta = cy - prevCycle_;
+      if (delta >= frameCycles_)
+      {
+        prevCycle_ = cy;
+        printf("%d%%\n", (int)(delta * 100 / frameCycles_));
+        break;
+      }
+    }
+    lcdDrawHScaleImage(0, (240 - img->H) >> 1, 320,
+                       img->W, img->H, img->L, img->Data);
+  }
+  else
+  {
+    waitVBlank();
+
     uint64_t cy = read_cycle();
     uint64_t delta = cy - prevCycle_;
-    if (delta >= frameCycles_)
+    prevCycle_ = cy;
+
+    if (img->W == WIDTH)
     {
-      prevCycle_ = cy;
-      printf("%d%%\n", (int)(delta * 100 / frameCycles_));
-      break;
+      setVideoImagex4(img->W, img->H, img->L, img->Data);
     }
+    else
+    {
+      setVideoImagex2(img->W, img->H, img->L, img->Data);
+    }
+    printf("%d%%\n", (int)(delta * 100 / frameCycles_));
   }
-  lcdDrawHScaleImage(0, (240 - img->H) >> 1, 320,
-                     img->W, img->H, img->L, img->Data);
   return 1;
 }
 
