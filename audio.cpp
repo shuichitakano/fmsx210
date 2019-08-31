@@ -109,7 +109,7 @@ void play()
             play();
             return 0;
         };
-        irq.priority = 1;
+        irq.priority = 2;
         active_ = true;
         i2s_handle_data_dma(I2S_DEVICE_0, data, &irq);
     }

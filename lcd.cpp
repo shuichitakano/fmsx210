@@ -6,10 +6,7 @@
 #include "lcd.h"
 #include <gpio.h>
 #include <sleep.h>
-
-#include <dmac.h>
-#include <utils.h>
-#include <sysctl.h>
+#include "spi_dma.h"
 
 namespace
 {
@@ -121,6 +118,8 @@ void LCD::init(spi_device_num_t spi_num,
     fpioa_set_function(dcx_pin, (fpioa_function_t)(FUNC_GPIO0 + dcx));
     gpio_set_drive_mode(dcx, GPIO_DM_OUTPUT);
     gpio_set_pin(gpioDCX_, GPIO_PV_HIGH);
+
+    SPIDMA::instance().init(spiNum_, dmaCh_, ss_pin, ss, 1 /* prio */);
 
     if (rst >= 0)
     {
@@ -286,6 +285,7 @@ void LCD::drawHScaleImage(int dx, int dy, int dw, int sw, int h,
 
 void LCD::writeCommand(uint8_t cmd)
 {
+    SPIDMA::instance().waitDone();
     setDCXControl();
     spi_init(spiNum_, SPI_WORK_MODE_0, SPI_FF_OCTAL, 8, 0);
     spi_init_non_standard(spiNum_, 8 /*instrction length*/, 0 /*address length*/, 0 /*wait cycles*/,
@@ -295,6 +295,7 @@ void LCD::writeCommand(uint8_t cmd)
 
 void LCD::writeByte(const uint8_t *data_buf, uint32_t length)
 {
+    SPIDMA::instance().waitDone();
     setDCXData();
     spi_init(spiNum_, SPI_WORK_MODE_0, SPI_FF_OCTAL, 8, 0);
     spi_init_non_standard(spiNum_, 8 /*instrction length*/, 0 /*address length*/, 0 /*wait cycles*/,
@@ -304,6 +305,7 @@ void LCD::writeByte(const uint8_t *data_buf, uint32_t length)
 
 void LCD::writeHalf(const uint16_t *data_buf, uint32_t length)
 {
+    SPIDMA::instance().waitDone();
     setDCXData();
     spi_init(spiNum_, SPI_WORK_MODE_0, SPI_FF_OCTAL, 16, 0);
     spi_init_non_standard(spiNum_, 16 /*instrction length*/, 0 /*address length*/, 0 /*wait cycles*/,
@@ -313,54 +315,11 @@ void LCD::writeHalf(const uint16_t *data_buf, uint32_t length)
 
 void LCD::writeWord(const uint32_t *data_buf, uint32_t length)
 {
+    auto &dma = SPIDMA::instance();
+    dma.waitDone();
     setDCXData();
-    spi_init(spiNum_, SPI_WORK_MODE_0, SPI_FF_OCTAL, 32, 0);
-
-    spi_init_non_standard(spiNum_, 0 /*instrction length*/, 32 /*address length*/, 0 /*wait cycles*/,
-                          SPI_AITM_AS_FRAME_FORMAT /*spi address trans mode*/);
-#if 1
-
-    //    spi_send_data_normal_dma(dmaCh_, spiNum_, cs_, data_buf, length, SPI_TRANS_INT);
-
-    auto spi_handle = (volatile spi_t *)SPI0_BASE_ADDR;
-    set_bit(&spi_handle->ctrlr0, 3 << 8, SPI_TMOD_TRANS << 8);
-    spi_handle->dmacr = 0x2; /*enable dma transmit*/
-    spi_handle->ssienr = 0x01;
-    //        spi_set_tmod(SPI_CHANNEL, SPI_TMOD_TRANS);
-
-    sysctl_dma_select((sysctl_dma_channel_t)dmaCh_, SYSCTL_DMA_SELECT_SSI0_TX_REQ);
-
-    dmac_set_single_mode(dmaCh_, data_buf, (void *)(&spi_handle->dr[0]), DMAC_ADDR_INCREMENT, DMAC_ADDR_NOCHANGE,
-                         DMAC_MSIZE_4, DMAC_TRANS_WIDTH_32, length);
-    spi_handle->ser = 1U << cs_;
-#else
-    printf("ts.");
-    //static volatile bool idle = true;
-    // while (!idle)
-    //     ;
-
-    dmac_wait_done(dmaCh_);
-
-    spi_data_t spiData;
-    spiData.tx_channel = dmaCh_;
-    spiData.fill_mode = false;
-    spiData.tx_buf = (uint32_t *)data_buf;
-    spiData.tx_len = length;
-    spiData.transfer_mode = SPI_TMOD_TRANS;
-
-    plic_interrupt_t ir;
-    ir.callback = [](void *param) -> int {
-        printf("trans\n");
-        //       idle = true;
-        return 0;
-    };
-    ir.priority = 2;
-
-    //idle = false;
-    spi_handle_data_dma(spiNum_, cs_, spiData, &ir);
-    //spi_handle_data_dma(spiNum_, cs_, spiData, nullptr);
-    printf("te %zd\n", spiData.tx_len);
-#endif
+    dma.resetCallback();
+    dma.transferBE(data_buf, length);
 }
 
 void LCD::fillData(const uint32_t *data_buf, uint32_t length)

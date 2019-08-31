@@ -39,6 +39,10 @@ add_source_files(
     std_file.cpp
     lcd.cpp
     audio.cpp
+    spi_dma.cpp
+    video.cpp
+    video_out.cpp
+    chrono.cpp
     )
 
 include(${SDK_ROOT}/cmake/executable.cmake)
