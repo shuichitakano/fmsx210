@@ -13,6 +13,8 @@
 #include "lcd.h"
 #include "audio.h"
 #include "video_out.h"
+#include "led.h"
+#include "ps2_keyboard.h"
 
 #include <sysctl.h>
 #include <encoding.h> // read_cycle()
@@ -61,8 +63,8 @@ int start_fMSX()
     DSKName[i] = NULL;
   }
 
-  //ROMName[0] = "img/DS4_MSX2.ROM";
-  DSKName[0] = "img/alst2_2.dsk";
+  ROMName[0] = "img/DS4_MSX2.ROM";
+  //DSKName[0] = "img/alst2_2.dsk";
 
   Mode = (Mode & ~MSX_MODEL) | MSX_MSX2;
   Mode = (Mode & ~MSX_VIDEO) | MSX_NTSC;
@@ -122,8 +124,8 @@ int InitMachine(void)
 
   InitSound(44100, 150);
   int SndSwitch = (1 << MAXCHANNELS) - 1;
-  //  int SndVolume = 2;
-  int SndVolume = 100;
+  int SndVolume = 10;
+  //int SndVolume = 100;
   SetChannels(SndVolume, SndSwitch);
 
   return 1;
@@ -193,7 +195,9 @@ int ShowVideo(void)
     {
       setVideoImagex2(img->W, img->H, img->L, img->Data);
     }
-    printf("%d%%\n", (int)(delta * 100 / frameCycles_));
+    int loadPercent = (int)(delta * 100 / frameCycles_);
+    setRGBLED(loadPercent <= 101 ? LEDCOLOR_GREEN : LEDCOLOR_RED);
+    //    printf("%d%%\n", loadPercent);
   }
   return 1;
 }
@@ -223,9 +227,74 @@ unsigned int Joystick(void)
 
 void Keyboard(void)
 {
+  // 0: 76543210
+  // 1: ;[@\^-98
+  // 2: ba_/.,]:
+  // 3: jihgfedc
+  // 4: rqponmlk
+  // 5: zyxwvuts
+  // 6: F3_F2_F1_かな_CAPS_GRAPH_CTRL_SHIFT
+  // 7: RET_SELECT_BS_STOP_TAB_ESC_F5_F4
+  // 8: →↓↑←_DEL_INS_HOME_SPACE
+  // 9: NUM4_NUM3_NUM2_NUM1_NUM0_NUM/_NUM+_NUM*
+  // a: NUM._NUM,_NUM-_NUM9_NUM8_NUM7_NUM6_NUM5
+  // b: *_*_*_*_No_*_Yes_*
+
+  /* clang-format off */
+  // MSXのキーコードに対するPS2のスキャンコードマップ
+  // e0系は+256
+  static uint16_t codeMap[] = {
+    0x45, 0x16, 0x1e, 0x26, 0x25, 0x2e, 0x36, 0x3d,
+    0x3e, 0x46, 0x4e, 0x55, 0x6a, 0x54, 0x5b, 0x4c,
+    0x52, 0x5d, 0x41, 0x49, 0x4a, 0x51, 0x1c, 0x32,
+    0x21, 0x23, 0x24, 0x2b, 0x34, 0x33, 0x43, 0x3b,
+    0x42, 0x4b, 0x3a, 0x31, 0x44, 0x4d, 0x15, 0x2d,
+    0x1b, 0x2c, 0x3c, 0x2a, 0x1d, 0x22, 0x35, 0x1a,
+    0x12, 0x14, 0x11 /*alt*/, 0x58, 0x0e/*全*/, 0x05, 0x06, 0x04, 
+    0x0c, 0x03, 0x76, 0x0d, 0x169 /*end*/, 0x66, 0x17a /*PgDn*/, 0x5a,
+    0x29, 0x16c, 0x170, 0x171, 0x16b, 0x175, 0x172, 0x174,
+    0x7c, 0x79, 0x14a, 0x70, 0x69, 0x72, 0x7a, 0x6b,
+    0x73, 0x74, 0x6c, 0x75, 0x7d, 0x7b, 0, 0x71,
+    };
+  /* clang-format on */
+
+  const uint16_t *p = codeMap;
+  for (int i = 0; i < 0xb; ++i)
+  {
+    int v = 0;
+    for (int j = 0; j < 8; ++j)
+    {
+      int m = *p++;
+      v |= isPS2KeyboardPushed(m & 0xff, m & 256) ? 0 : 1 << j;
+    }
+    KeyState[i] = v;
+  }
+
+  static int prevF10 = 0;
+  int f10 = isPS2KeyboardPushed(0x09, 0);
+  if (!prevF10 && f10)
+  {
+    MenuMSX();
+  }
+  prevF10 = f10;
 }
 
 unsigned int Mouse(byte N)
+{
+  return 0;
+}
+
+unsigned int GetKey(void)
+{
+  return 0;
+}
+
+unsigned int WaitKey(void)
+{
+  return 0;
+}
+
+unsigned int WaitKeyOrMouse(void)
 {
   return 0;
 }

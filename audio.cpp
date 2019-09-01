@@ -23,6 +23,13 @@ struct Buffer
     volatile int rp_ = 0;
 
 public:
+    void clear()
+    {
+        memset(ring_, 0, sizeof(ring_));
+        wp_ = UNIT_SIZE;
+        rp_ = 0;
+    }
+
     int getFree() const
     {
         if (wp_ >= rp_)
@@ -150,4 +157,7 @@ void initAudio(uint32_t freq)
 
     i2s_set_sample_rate(I2S_DEVICE_0, freq);
     i2s_set_dma_divide_16(I2S_DEVICE_0, true);
+
+    buffer_.clear();
+    play();
 }
