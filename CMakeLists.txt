@@ -43,6 +43,8 @@ add_source_files(
     video.cpp
     video_out.cpp
     chrono.cpp
+    ps2_keyboard.cpp
+    led.cpp
     )
 
 include(${SDK_ROOT}/cmake/executable.cmake)
