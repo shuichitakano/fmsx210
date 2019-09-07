@@ -27,7 +27,7 @@ include_directories(
     )
     
 add_definitions(
-    -DBPS16 -DBPP16 -DUNIX -DLSB_FIRST
+    -DBPS16 -DBPP16 -DUNIX -DLSB_FIRST -DFMSX
     )
 
 add_subdirectory(sd_card)

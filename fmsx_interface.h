@@ -20,6 +20,8 @@ extern "C"
 
     int start_fMSX();
 
+    void initButton(int i, int pin, int gpio);
+
 #ifdef __cplusplus
 }
 #endif
