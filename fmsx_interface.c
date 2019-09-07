@@ -15,6 +15,10 @@
 #include "video_out.h"
 #include "led.h"
 #include "ps2_keyboard.h"
+#include <gpiohs.h>
+#include <fpioa.h>
+#include <sleep.h>
+#include <unistd.h>
 
 #include <sysctl.h>
 #include <encoding.h> // read_cycle()
@@ -26,6 +30,69 @@ static VideoOutMode videoOutMode = VIDEOOUTMODE_LCD;
 void setFMSXVideoOutMode(VideoOutMode m)
 {
   videoOutMode = m;
+}
+
+enum
+{
+  BUTTON_UP = 2,
+  BUTTON_CENTER = 1,
+  BUTTON_DOWN = 0,
+};
+
+static uint8_t buttonGPIO_[3];
+static uint8_t buttonState_ = 0;
+
+void initButton(int i, int pin, int gpio)
+{
+  buttonGPIO_[i] = gpio;
+  fpioa_set_function(pin, (fpioa_function_t)(FUNC_GPIOHS0 + gpio));
+  gpiohs_set_drive_mode(gpio, GPIO_DM_INPUT_PULL_UP);
+}
+
+int isButtonPushed(int i)
+{
+  return !gpiohs_get_pin(buttonGPIO_[i]);
+}
+
+int fetchButtons()
+{
+  int v = 0;
+  for (int i = 0; i < 3; ++i)
+  {
+    v |= isButtonPushed(i) << i;
+  }
+
+  int edge = (buttonState_ ^ v) & v;
+  buttonState_ = v;
+  return edge;
+}
+
+enum
+{
+  UIKEY_F6,
+  UIKEY_F7,
+  UIKEY_F10,
+  UIKEY_ENTER,
+  UIKEY_ESC,
+  UIKEY_UP,
+  UIKEY_DOWN,
+};
+static uint8_t uiKeyState_ = 0;
+
+int fetchUIKeys()
+{
+  int v = (isPS2KeyboardPushed(0x0b, 0) ? 1 << UIKEY_F6 : 0) |
+          (isPS2KeyboardPushed(0x83, 0) ? 1 << UIKEY_F7 : 0) |
+          (isPS2KeyboardPushed(0x09, 0) ? 1 << UIKEY_F10 : 0) |
+          (isPS2KeyboardPushed(0x5a, 0) ? 1 << UIKEY_ENTER : 0) |
+          (isPS2KeyboardPushed(0x76, 0) ? 1 << UIKEY_ESC : 0) |
+          (isPS2KeyboardPushed(0x75, 1) ? 1 << UIKEY_UP : 0) |
+          (isPS2KeyboardPushed(0x72, 1) ? 1 << UIKEY_DOWN : 0) |
+          0;
+
+  int edge = (uiKeyState_ ^ v) & v;
+  uiKeyState_ = v;
+  return edge;
 }
 
 static Image NormScreen;
@@ -63,12 +130,18 @@ int start_fMSX()
     DSKName[i] = NULL;
   }
 
-  ROMName[0] = "img/DS4_MSX2.ROM";
+  chdir("\\");
+
+  //ROMName[0] = "img/DS4_MSX2.ROM";
+  DSKName[0] = "img/ys2_1.dsk";
   //DSKName[0] = "img/alst2_2.dsk";
 
   Mode = (Mode & ~MSX_MODEL) | MSX_MSX2;
   Mode = (Mode & ~MSX_VIDEO) | MSX_NTSC;
-  Mode = (Mode & ~MSX_JOYSTICKS) | MSX_JOY1 | MSX_NOJOY2;
+  //  Mode = (Mode & ~MSX_JOYSTICKS) | MSX_JOY1 | MSX_NOJOY2;
+  Mode = (Mode & ~MSX_JOYSTICKS) | MSX_NOJOY1 | MSX_NOJOY2;
+  Mode &= ~MSX_MSXDOS2; // いろいろ動かない
+                        //  Mode |= MSX_PATCHBDOS;
 
   RAMPages = 4;
   VRAMPages = 2;
@@ -94,6 +167,14 @@ unsigned int InitAudio(unsigned int Rate, unsigned int Latency)
 
 void TrashAudio(void)
 {
+}
+
+static int soundVolume = 2;
+
+void setVolume(int v)
+{
+  int SndSwitch = (1 << MAXCHANNELS) - 1;
+  SetChannels(v, SndSwitch);
 }
 
 int InitMachine(void)
@@ -123,10 +204,8 @@ int InitMachine(void)
   OldScrMode = 0;
 
   InitSound(44100, 150);
-  int SndSwitch = (1 << MAXCHANNELS) - 1;
-  int SndVolume = 10;
-  //int SndVolume = 100;
-  SetChannels(SndVolume, SndSwitch);
+  soundVolume = 2;
+  setVolume(soundVolume);
 
   return 1;
 }
@@ -163,6 +242,8 @@ int ShowVideo(void)
     return 1;
   }
 
+  int loadPercent = 0;
+
   if (videoOutMode == VIDEOOUTMODE_LCD)
   {
     while (1)
@@ -172,7 +253,7 @@ int ShowVideo(void)
       if (delta >= frameCycles_)
       {
         prevCycle_ = cy;
-        printf("%d%%\n", (int)(delta * 100 / frameCycles_));
+        loadPercent = (int)(delta * 100 / frameCycles_);
         break;
       }
     }
@@ -195,10 +276,10 @@ int ShowVideo(void)
     {
       setVideoImagex2(img->W, img->H, img->L, img->Data);
     }
-    int loadPercent = (int)(delta * 100 / frameCycles_);
-    setRGBLED(loadPercent <= 101 ? LEDCOLOR_GREEN : LEDCOLOR_RED);
-    //    printf("%d%%\n", loadPercent);
+    loadPercent = (int)(delta * 100 / frameCycles_);
   }
+  setRGBLED(loadPercent <= 101 ? LEDCOLOR_GREEN : LEDCOLOR_RED);
+  //    printf("%d%%\n", loadPercent);
   return 1;
 }
 
@@ -270,13 +351,40 @@ void Keyboard(void)
     KeyState[i] = v;
   }
 
-  static int prevF10 = 0;
-  int f10 = isPS2KeyboardPushed(0x09, 0);
-  if (!prevF10 && f10)
+  int uiKeys = fetchUIKeys();
+  int buttons = fetchButtons();
+  if ((uiKeys & (1 << UIKEY_F10)) || (buttons & (1 << BUTTON_CENTER)))
   {
     MenuMSX();
   }
-  prevF10 = f10;
+  if (uiKeys & (1 << UIKEY_F6))
+  {
+    LoadSTA(STAName ? STAName : "DEFAULT.STA");
+    //    RPLPlay(RPL_OFF);
+  }
+  if (uiKeys & (1 << UIKEY_F7))
+  {
+    LoadSTA(STAName ? STAName : "DEFAULT.STA");
+    //    RPLPlay(RPL_OFF);
+  }
+  if (buttons & (1 << BUTTON_UP))
+  {
+    soundVolume += 1;
+    if (soundVolume >= 100)
+    {
+      soundVolume = 100;
+    }
+    setVolume(soundVolume);
+  }
+  if (buttons & (1 << BUTTON_DOWN))
+  {
+    soundVolume -= 1;
+    if (soundVolume <= 0)
+    {
+      soundVolume = 0;
+    }
+    setVolume(soundVolume);
+  }
 }
 
 unsigned int Mouse(byte N)
@@ -286,17 +394,44 @@ unsigned int Mouse(byte N)
 
 unsigned int GetKey(void)
 {
+  int uikey = fetchUIKeys();
+  int button = fetchButtons();
+  if (uikey & (1 << UIKEY_UP) || (button & (1 << BUTTON_UP)))
+  {
+    return CON_UP;
+  }
+  if (uikey & (1 << UIKEY_DOWN) || (button & (1 << BUTTON_DOWN)))
+  {
+    return CON_DOWN;
+  }
+  if (uikey & (1 << UIKEY_ENTER) || (button & (1 << BUTTON_CENTER)))
+  {
+    return CON_OK;
+  }
+  if (uikey & (1 << UIKEY_ESC))
+  {
+    return CON_EXIT;
+  }
   return 0;
 }
 
 unsigned int WaitKey(void)
 {
+  while (1)
+  {
+    usleep(1000);
+    int key = GetKey();
+    if (key)
+    {
+      return key;
+    }
+  }
   return 0;
 }
 
 unsigned int WaitKeyOrMouse(void)
 {
-  return 0;
+  return WaitKey();
 }
 
 void SetColor(byte N, byte R, byte G, byte B)

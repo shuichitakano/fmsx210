@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
 
 add_definitions(
-    -DBPP16 -DUNIX
+#    -DBPP16 -DUNIX
 #    -DCONDEBUG
     -Werror=unused-const-variable=0
     -Werror=format-overflow=0

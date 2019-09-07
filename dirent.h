@@ -10,7 +10,7 @@ extern "C"
 
     struct dirent
     {
-        char *d_name;
+        char d_name[_MAX_LFN];
     };
 
     DIR *opendir(const char *name);

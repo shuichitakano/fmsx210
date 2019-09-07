@@ -13,45 +13,126 @@
 
 #include <syslog.h>
 
-extern "C"
+namespace
 {
-    namespace
+
+constexpr const char *TAG = "STDFILE";
+
+template <class T, int N>
+class Allocator
+{
+    std::array<T, N> objs_;
+    uint32_t freeObjMask_ = (1 << N) - 1;
+
+public:
+    int allocate()
     {
-    constexpr const char *TAG = "STDFILE";
-
-    constexpr int FD_OFFSET = 1024;
-    constexpr int MAX_FILES = 8;
-
-    std::array<FIL, MAX_FILES> files_;
-    uint32_t freeFileMask_ = MAX_FILES - 1;
-
-    int allocateFile()
-    {
-        for (int i = 0; i < MAX_FILES; ++i)
+        for (int i = 0; i < N; ++i)
         {
-            if (freeFileMask_ & (1 << i))
+            if (freeObjMask_ & (1 << i))
             {
-                freeFileMask_ &= ~(1 << i);
-                return i + FD_OFFSET;
+                freeObjMask_ &= ~(1 << i);
+                return i;
             }
         }
-        LOGV(TAG, "file overflow");
-
         return -1;
     }
 
-    void freeFile(int fp)
+    void free(int i)
     {
-        fp -= FD_OFFSET;
-        freeFileMask_ |= (1 << fp);
+        freeObjMask_ |= (1 << i);
     }
 
-    FIL *getFile(int fp)
+    void free(T *p)
     {
-        return &files_[fp - FD_OFFSET];
+        free(p - objs_.data());
     }
-    } // namespace
 
+    int getIndex(T *p)
+    {
+        return p - objs_.data();
+    }
+
+    T &get(int i)
+    {
+        return objs_[i];
+    }
+
+    static Allocator &instance()
+    {
+        static Allocator inst;
+        return inst;
+    }
+};
+
+constexpr int FD_OFFSET = 1024;
+constexpr int MAX_FILES = 8;
+constexpr int MAX_DIRS = 8;
+
+std::array<dirent, MAX_DIRS> dirents_;
+
+Allocator<FIL, MAX_FILES> &getFileAllocator()
+{
+    return Allocator<FIL, MAX_FILES>::instance();
+}
+
+Allocator<DIR, MAX_FILES> &getDirAllocator()
+{
+    return Allocator<DIR, MAX_DIRS>::instance();
+}
+
+int allocateFile()
+{
+    auto i = getFileAllocator().allocate();
+    if (i < 0)
+    {
+        LOGV(TAG, "file overflow");
+        return -1;
+    }
+    return i + FD_OFFSET;
+}
+
+void freeFile(int fp)
+{
+    fp -= FD_OFFSET;
+    getFileAllocator().free(fp);
+}
+
+FIL *getFile(int fp)
+{
+    return &getFileAllocator().get(fp - FD_OFFSET);
+}
+
+int allocateDir()
+{
+    auto i = getDirAllocator().allocate();
+    if (i < 0)
+    {
+        LOGV(TAG, "dir overflow");
+        return -1;
+    }
+    return i;
+}
+
+void freeDir(int i)
+{
+    getDirAllocator().free(i);
+}
+
+void freeDir(DIR *d)
+{
+    getDirAllocator().free(d);
+}
+
+DIR *getDir(int i)
+{
+    return &getDirAllocator().get(i);
+}
+
+} // namespace
+
+extern "C"
+{
     int
     sys_file_open(const char *name, int flags, int mode)
     {
@@ -131,7 +212,7 @@ extern "C"
         return 0;
     }
 
-    long
+    int
     sys_file_stat(const char *name, struct stat *st)
     {
         //        LOGV(TAG, "file_stat(%s, %p)", name, st);
@@ -150,6 +231,7 @@ extern "C"
         {
             st->st_mode |= _IFREG;
         }
+        //        LOGV(TAG, "st: %p, %p, %zd, d %d\n", st, st + 1, sizeof(*st), S_ISDIR(st->st_mode));
         return 0;
     }
 
@@ -193,41 +275,86 @@ extern "C"
     }
 
     ////
-
-    int chdir(const char *path)
-    {
-        printf("chdir: %s\n", path);
-        return 0;
-    }
+    // void rewind(FILE *fp)
+    // {
+    //     fseek(fp, 0L, SEEK_SET);
+    // }
 
     DIR *opendir(const char *name)
     {
-        printf("opendir: %s\n", name);
-        return 0;
+        //        printf("opendir: %s\n", name);
+        auto di = allocateDir();
+        if (di < 0)
+        {
+            return nullptr;
+        }
+
+        auto *d = getDir(di);
+        if (f_opendir(d, name) != FR_OK)
+        {
+            freeDir(di);
+            return 0;
+        }
+        return d;
     }
 
     int closedir(DIR *dir)
     {
-        printf("closedir: %p\n", dir);
+        //        printf("closedir: %p\n", dir);
+        freeDir(dir);
         return 0;
     }
 
     struct dirent *readdir(DIR *dir)
     {
-        printf("readdir: %p\n", dir);
-        return 0;
+        //        printf("readdir: %p\n", dir);
+
+        FILINFO fi;
+        if (f_readdir(dir, &fi) != FR_OK)
+        {
+            printf("read dir error.\n");
+        }
+
+        if (!fi.fname[0])
+        {
+            return nullptr;
+        }
+
+        int di = getDirAllocator().getIndex(dir);
+        auto &d = dirents_[di];
+        //        printf("%d:%p:%p: name = %s\n", di, &d, d.d_name, fi.fname);
+        strcpy(d.d_name, fi.fname);
+
+        return &d;
     }
 
     void rewinddir(DIR *dir)
     {
-        printf("rewinddir: %p\n", dir);
+        //        printf("rewinddir: %p\n", dir);
+
+        if (f_rewinddir(dir) != FR_OK)
+        {
+            printf("rewind dir error.\n");
+        }
+    }
+
+    std::string currentDir_;
+
+    int chdir(const char *path)
+    {
+        //        printf("chdir: %s\n", path);
+        f_chdir(path);
+        currentDir_ = path;
+        return 0;
     }
 
     char *getcwd(char *buffer, size_t size)
     {
+
         if (size)
         {
-            buffer[0] = 0;
+            strncpy(buffer, currentDir_.c_str(), size);
+            //            f_getcwd(buffer, size);
         }
         return buffer;
     }

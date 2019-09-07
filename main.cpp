@@ -50,6 +50,13 @@
 #define PS2_CLK_GPIOHSNUM 14
 #define PS2_DAT_GPIOHSNUM 16
 
+#define BUTTON0_PIN 16
+#define BUTTON1_PIN 15
+#define BUTTON2_PIN 17
+#define BUTTON0_GPIOHSNUM 0
+#define BUTTON1_GPIOHSNUM 2
+#define BUTTON2_GPIOHSNUM 3
+
 #define AUDIO_ENABLE_PIN 32 // MAIX GO
 //#define AUDIO_ENABLE_PIN 2  // MAIXDUINO
 #define AUDIO_ENABLE_GPIONUM 5
@@ -160,6 +167,10 @@ int main()
             LED_G_PIN, LED_G_GPIONUM,
             LED_B_PIN, LED_B_GPIONUM);
     setRGBLED(0);
+
+    initButton(0, BUTTON0_PIN, BUTTON0_GPIOHSNUM);
+    initButton(1, BUTTON1_PIN, BUTTON1_GPIOHSNUM);
+    initButton(2, BUTTON2_PIN, BUTTON2_GPIOHSNUM);
 
     sd_test();
 
