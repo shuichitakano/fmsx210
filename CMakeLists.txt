@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0)
 
 set(PROJ fmsx)
 
-if (NOT TOOL_CHAIN)
+if (NOT TOOLCHAIN)
     set(TOOLCHAIN "/usr/local/opt/kendryte-toolchain/bin")
 endif()
 
