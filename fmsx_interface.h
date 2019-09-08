@@ -18,7 +18,9 @@ extern "C"
 
     void setFMSXVideoOutMode(VideoOutMode m);
 
-    int start_fMSX();
+    int start_fMSX(const char *rom0, const char *rom1,
+                   const char *disk0, const char *disk1,
+                   int ramPages, int vramPages, int volume);
 
     void initButton(int i, int pin, int gpio);
 

@@ -310,15 +310,18 @@ extern "C"
         //        printf("readdir: %p\n", dir);
 
         FILINFO fi;
-        if (f_readdir(dir, &fi) != FR_OK)
+        do
         {
-            printf("read dir error.\n");
-        }
+            if (f_readdir(dir, &fi) != FR_OK)
+            {
+                printf("read dir error.\n");
+            }
 
-        if (!fi.fname[0])
-        {
-            return nullptr;
-        }
+            if (!fi.fname[0])
+            {
+                return nullptr;
+            }
+        } while (fi.fattrib & AM_HID);
 
         int di = getDirAllocator().getIndex(dir);
         auto &d = dirents_[di];

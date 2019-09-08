@@ -1,0 +1,14 @@
+{
+    "//default_rom0": "img/DS4_MSX2.ROM",
+    "default_rom1": "",
+    "default_disk0": "img/ys2_1.dsk",
+    "default_disk1": "",
+    "ram_pages": 4,
+    "vram_pages": 2,
+    "video": "LCD",
+    "//video": "NTSC",
+    "flip_lcd": false,
+    "audio_enable_pin": 32,
+    "//audio_enable_pin": 2,
+    "volume": 2
+}

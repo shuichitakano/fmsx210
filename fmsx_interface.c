@@ -108,12 +108,16 @@ static int OldScrMode;
 static uint64_t frameCycles_ = 0;
 static uint64_t prevCycle_ = 0;
 
+static int soundVolume = 2;
+
 void HandleKeys(unsigned int Key);
 void PutImage(void);
 
 #include "CommonMux.h"
 
-int start_fMSX()
+int start_fMSX(const char *rom0, const char *rom1,
+               const char *disk0, const char *disk1,
+               int ramPages, int vramPages, int volume)
 {
   if (!InitMachine())
   {
@@ -124,27 +128,31 @@ int start_fMSX()
   {
     ROMName[i] = NULL;
   }
+  ROMName[0] = rom0;
+  ROMName[1] = rom1;
 
   for (int i = 0; i < MAXDRIVES; ++i)
   {
     DSKName[i] = NULL;
   }
+  DSKName[0] = disk0;
+  DSKName[1] = disk1;
 
   chdir("\\");
 
   //ROMName[0] = "img/DS4_MSX2.ROM";
-  DSKName[0] = "img/ys2_1.dsk";
+  //DSKName[0] = "img/ys2_1.dsk";
   //DSKName[0] = "img/alst2_2.dsk";
 
   Mode = (Mode & ~MSX_MODEL) | MSX_MSX2;
   Mode = (Mode & ~MSX_VIDEO) | MSX_NTSC;
-  //  Mode = (Mode & ~MSX_JOYSTICKS) | MSX_JOY1 | MSX_NOJOY2;
   Mode = (Mode & ~MSX_JOYSTICKS) | MSX_NOJOY1 | MSX_NOJOY2;
-  Mode &= ~MSX_MSXDOS2; // いろいろ動かない
+  Mode &= ~MSX_MSXDOS2; // DOS2あるといろいろ動かない
                         //  Mode |= MSX_PATCHBDOS;
 
-  RAMPages = 4;
-  VRAMPages = 2;
+  RAMPages = ramPages;
+  VRAMPages = vramPages;
+  soundVolume = volume;
 
   UPeriod = 100;
   Verbose = 1;
@@ -168,8 +176,6 @@ unsigned int InitAudio(unsigned int Rate, unsigned int Latency)
 void TrashAudio(void)
 {
 }
-
-static int soundVolume = 2;
 
 void setVolume(int v)
 {
@@ -204,7 +210,6 @@ int InitMachine(void)
   OldScrMode = 0;
 
   InitSound(44100, 150);
-  soundVolume = 2;
   setVolume(soundVolume);
 
   return 1;
@@ -357,6 +362,7 @@ void Keyboard(void)
   {
     MenuMSX();
   }
+#if 0
   if (uiKeys & (1 << UIKEY_F6))
   {
     LoadSTA(STAName ? STAName : "DEFAULT.STA");
@@ -367,12 +373,13 @@ void Keyboard(void)
     LoadSTA(STAName ? STAName : "DEFAULT.STA");
     //    RPLPlay(RPL_OFF);
   }
+#endif
   if (buttons & (1 << BUTTON_UP))
   {
     soundVolume += 1;
-    if (soundVolume >= 100)
+    if (soundVolume >= 255)
     {
-      soundVolume = 100;
+      soundVolume = 255;
     }
     setVolume(soundVolume);
   }
