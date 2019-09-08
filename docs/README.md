@@ -2,6 +2,8 @@
 fMSX を Sipeed の Maix シリーズ向けに移植したものです。
 付属の LCD での映像出力のほか、コンポジットビデオでの映像出力に対応しています。
 
+[Download](https://github.com/shuichitakano/fmsx210/releases/download/v0.1/fmsx210_v0.1.zip)
+
 ## 動作環境
 Maix Dock, Maix Go, Maixduino で動作します。
 コンポジットビデオ出力を使用するには、LCD のポートがヘッダに出ているボード(Maix Dock/Go を使用するのがおすすめです。
