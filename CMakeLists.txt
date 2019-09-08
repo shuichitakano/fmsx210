@@ -24,6 +24,7 @@ include_directories(
     ${FMSX_ROOT}/Z80
     ${FMSX_ROOT}/EMULib
     ${FMSX_ROOT}/fMSX
+    third_party/picojson
     )
     
 add_definitions(

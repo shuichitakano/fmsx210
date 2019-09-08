@@ -2,3 +2,6 @@
 	path = third_party/kendryte-standalone-sdk
 	url = https://github.com/shuichitakano/kendryte-standalone-sdk.git
 	
+[submodule "third_party/picojson"]
+	path = third_party/picojson
+	url = https://github.com/kazuho/picojson.git
