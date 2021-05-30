@@ -39,16 +39,24 @@ void PS2Keyboard::init(int clkPin, int clkGPIOHS,
     e0_ = false;
 
     gpiohs_set_pin_edge(clkGPIO_, GPIO_PE_FALLING);
+
+    enabled_ = true;
 }
 
 void PS2Keyboard::start()
 {
+    if (!enabled_)
+    {
+        return;
+    }
+
     printf("start kb\n");
-    gpiohs_irq_register(clkGPIO_, prio_, [](void *p) -> int {
-        ((PS2Keyboard *)p)->callback();
-        return 0;
-    },
-                        this);
+    gpiohs_irq_register(
+        clkGPIO_, prio_, [](void *p) -> int {
+            ((PS2Keyboard *)p)->callback();
+            return 0;
+        },
+        this);
 }
 
 void PS2Keyboard::callback()

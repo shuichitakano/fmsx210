@@ -12,119 +12,120 @@
 namespace
 {
 
-constexpr int SIZE = 4096;
-constexpr int UNIT_SIZE = SIZE / 8;
+    constexpr int SIZE = 4096;
+    constexpr int UNIT_SIZE = SIZE / 8;
 
-struct Buffer
-{
-    alignas(4) int16_t ring_[SIZE];
-
-    volatile int wp_ = 0;
-    volatile int rp_ = 0;
-
-public:
-    void clear()
+    struct Buffer
     {
-        memset(ring_, 0, sizeof(ring_));
-        wp_ = UNIT_SIZE;
-        rp_ = 0;
-    }
+        alignas(4) int16_t ring_[SIZE];
 
-    int getFree() const
-    {
-        if (wp_ >= rp_)
+        volatile int wp_ = 0;
+        volatile int rp_ = 0;
+
+    public:
+        void clear()
         {
-            return SIZE - wp_ + rp_ - 1;
+            memset(ring_, 0, sizeof(ring_));
+            wp_ = UNIT_SIZE;
+            rp_ = 0;
         }
-        else
-        {
-            return rp_ - wp_ - 1;
-        }
-    }
 
-    int getSize() const
-    {
-        if (wp_ >= rp_)
+        int getFree() const
         {
-            return wp_ - rp_;
-        }
-        else
-        {
-            return SIZE - rp_ + wp_;
-        }
-    }
-
-    void write(const int16_t *p, int size)
-    {
-        auto s = std::min(size, SIZE - wp_);
-        memcpy(&ring_[wp_], p, s * sizeof(int16_t));
-        p += s;
-        s = size - s;
-        memcpy(&ring_[0], p, s * sizeof(int16_t));
-        wp_ = (wp_ + size) & (SIZE - 1);
-    }
-
-    void writeMonoToStereo(const int16_t *p, int size)
-    {
-        assert((wp_ & 1) == 0);
-        auto copy = [](uint32_t *dst, const int16_t *&src, int n) {
-            while (n)
+            if (wp_ >= rp_)
             {
-                auto v = (uint16_t)*src++;
-                *dst++ = v | (v << 16);
-                --n;
+                return SIZE - wp_ + rp_ - 1;
             }
-        };
+            else
+            {
+                return rp_ - wp_ - 1;
+            }
+        }
 
-        size <<= 1;
-        auto s = std::min(size, SIZE - wp_);
-        copy((uint32_t *)&ring_[wp_], p, s >> 1);
-        s = size - s;
-        copy((uint32_t *)&ring_[0], p, s >> 1);
-        wp_ = (wp_ + size) & (SIZE - 1);
-    }
+        int getSize() const
+        {
+            if (wp_ >= rp_)
+            {
+                return wp_ - rp_;
+            }
+            else
+            {
+                return SIZE - rp_ + wp_;
+            }
+        }
 
-    const int16_t *getReadPointer() const
+        void write(const int16_t *p, int size)
+        {
+            auto s = std::min(size, SIZE - wp_);
+            memcpy(&ring_[wp_], p, s * sizeof(int16_t));
+            p += s;
+            s = size - s;
+            memcpy(&ring_[0], p, s * sizeof(int16_t));
+            wp_ = (wp_ + size) & (SIZE - 1);
+        }
+
+        void writeMonoToStereo(const int16_t *p, int size)
+        {
+            assert((wp_ & 1) == 0);
+            auto copy = [](uint32_t *dst, const int16_t *&src, int n) {
+                while (n)
+                {
+                    auto v = (uint16_t)*src++;
+                    *dst++ = v | (v << 16);
+                    --n;
+                }
+            };
+
+            size <<= 1;
+            auto s = std::min(size, SIZE - wp_);
+            copy((uint32_t *)&ring_[wp_], p, s >> 1);
+            s = size - s;
+            copy((uint32_t *)&ring_[0], p, s >> 1);
+            wp_ = (wp_ + size) & (SIZE - 1);
+        }
+
+        const int16_t *getReadPointer() const
+        {
+            return &ring_[rp_];
+        }
+
+        void advanceReadPointer(int size)
+        {
+            rp_ = (rp_ + size) & (SIZE - 1);
+        }
+    };
+
+    Buffer buffer_;
+
+    volatile bool active_ = false;
+
+    void play()
     {
-        return &ring_[rp_];
+        auto size = buffer_.getSize();
+        if (size >= UNIT_SIZE)
+        {
+            i2s_data_t data;
+            data.tx_channel = DMAC_CHANNEL0;
+            data.tx_buf = (uint32_t *)buffer_.getReadPointer();
+            data.tx_len = UNIT_SIZE / 2;
+            data.transfer_mode = I2S_SEND;
+
+            plic_interrupt_t irq;
+            irq.callback = [](void *) -> int {
+                buffer_.advanceReadPointer(UNIT_SIZE);
+                play();
+                return 0;
+            };
+            irq.priority = 2;
+            active_ = true;
+            //            printf("dma %p, %zd\n", data.tx_buf, data.tx_len);
+            i2s_handle_data_dma(I2S_DEVICE_0, data, &irq);
+        }
+        else
+        {
+            active_ = false;
+        }
     }
-
-    void advanceReadPointer(int size)
-    {
-        rp_ = (rp_ + size) & (SIZE - 1);
-    }
-};
-
-Buffer buffer_;
-
-volatile bool active_ = false;
-
-void play()
-{
-    auto size = buffer_.getSize();
-    if (size >= UNIT_SIZE)
-    {
-        i2s_data_t data;
-        data.tx_channel = DMAC_CHANNEL0;
-        data.tx_buf = (uint32_t *)buffer_.getReadPointer();
-        data.tx_len = UNIT_SIZE / 2;
-        data.transfer_mode = I2S_SEND;
-
-        plic_interrupt_t irq;
-        irq.callback = [](void *) -> int {
-            buffer_.advanceReadPointer(UNIT_SIZE);
-            play();
-            return 0;
-        };
-        irq.priority = 2;
-        active_ = true;
-        i2s_handle_data_dma(I2S_DEVICE_0, data, &irq);
-    }
-    else
-    {
-        active_ = false;
-    }
-}
 
 } // namespace
 
@@ -142,18 +143,38 @@ void writeAudioData(const int16_t *p, int count)
     }
 }
 
-void initAudio(uint32_t freq)
+void initAudio(uint32_t freq, uint8_t amigo)
 {
-    fpioa_set_function(34, FUNC_I2S0_OUT_D0);
-    fpioa_set_function(35, FUNC_I2S0_SCLK);
-    fpioa_set_function(33, FUNC_I2S0_WS);
+    if (amigo)
+    {
+        fpioa_set_function(13, FUNC_I2S0_MCLK);
+        fpioa_set_function(21, FUNC_I2S0_SCLK);
+        fpioa_set_function(18, FUNC_I2S0_WS);
+        fpioa_set_function(35, FUNC_I2S0_IN_D0);
+        fpioa_set_function(34, FUNC_I2S0_OUT_D2);
+    }
+    else
+    {
+        fpioa_set_function(34, FUNC_I2S0_OUT_D0);
+        fpioa_set_function(35, FUNC_I2S0_SCLK);
+        fpioa_set_function(33, FUNC_I2S0_WS);
+    }
 
     i2s_init(I2S_DEVICE_0, I2S_TRANSMITTER, 3);
 
-    i2s_tx_channel_config(I2S_DEVICE_0, I2S_CHANNEL_0,
+    i2s_tx_channel_config(I2S_DEVICE_0,
+                          amigo ? I2S_CHANNEL_2 : I2S_CHANNEL_0,
                           RESOLUTION_16_BIT, SCLK_CYCLES_32,
                           TRIGGER_LEVEL_4,
-                          RIGHT_JUSTIFYING_MODE);
+                          amigo ? STANDARD_MODE : RIGHT_JUSTIFYING_MODE);
+    if (amigo)
+    {
+        i2s_rx_channel_config(I2S_DEVICE_0,
+                              I2S_CHANNEL_0,
+                              RESOLUTION_16_BIT, SCLK_CYCLES_32,
+                              TRIGGER_LEVEL_4,
+                              STANDARD_MODE);
+    }
 
     i2s_set_sample_rate(I2S_DEVICE_0, freq);
     i2s_set_dma_divide_16(I2S_DEVICE_0, true);

@@ -1,0 +1,10 @@
+#ifndef _96578763_8134_61B5_254F_F1E3A96D432A
+#define _96578763_8134_61B5_254F_F1E3A96D432A
+/*
+ * author : Shuichi TAKANO
+ * since  : Mon Jan 25 2021 02:45:00
+ */
+
+void initES8374();
+
+#endif /* _96578763_8134_61B5_254F_F1E3A96D432A */

@@ -8,17 +8,16 @@
 #include <math.h>
 #include <stdio.h>
 #include <assert.h>
-#include <bsp.h>
-
+#include "worker.h"
 #include "chrono.h"
 
 namespace
 {
 
-void setValue(std::vector<uint32_t> &v, int idx, int value)
-{
-    ((uint8_t *)&v[idx >> 2])[(idx & 3) ^ 3] = value;
-}
+    void setValue(std::vector<uint32_t> &v, int idx, int value)
+    {
+        ((uint8_t *)&v[idx >> 2])[(idx & 3) ^ 3] = value;
+    }
 
 } // namespace
 
@@ -262,7 +261,6 @@ void NTSCEncoder::makeColotLUT(int rBits, int gBits, int bBits,
 
 #if 1
 
-
 void NTSCEncoder::setLinex2(int w, int line, const uint16_t *img)
 {
     line += vStart_;
@@ -327,32 +325,32 @@ void NTSCEncoder::setLinex4(int w, int line, const uint16_t *img)
 namespace
 {
 
-struct YCbCr
-{
-    int y;  // 8:20
-    int cb; // 8:13
-    int cr; // 8:13
-
-    inline YCbCr(uint16_t src, int ss128)
+    struct YCbCr
     {
-        static constexpr int rcoef = int(0.299f * 2048) << 5;
-        static constexpr int gcoef = int(0.587f * 1024);
-        static constexpr int bcoef = int(0.114f * 2048) << 5;
+        int y;  // 8:20
+        int cb; // 8:13
+        int cr; // 8:13
 
-        int r = src >> 11;
-        int g = src & (63 << 5);
-        int b = src & 31;
-        y = rcoef * r + gcoef * g + bcoef * b;
-        cb = (b << 16) - y;
-        cr = (r << 16) - y;
-        y *= ss128;
-    }
+        inline YCbCr(uint16_t src, int ss128)
+        {
+            static constexpr int rcoef = int(0.299f * 2048) << 5;
+            static constexpr int gcoef = int(0.587f * 1024);
+            static constexpr int bcoef = int(0.114f * 2048) << 5;
 
-    inline int compute(const NTSCEncoder::SinCos &sc) const
-    {
-        return (y + cb * sc.sin_ + cr * sc.cos_) >> 20;
-    }
-};
+            int r = src >> 11;
+            int g = src & (63 << 5);
+            int b = src & 31;
+            y = rcoef * r + gcoef * g + bcoef * b;
+            cb = (b << 16) - y;
+            cr = (r << 16) - y;
+            y *= ss128;
+        }
+
+        inline int compute(const NTSCEncoder::SinCos &sc) const
+        {
+            return (y + cb * sc.sin_ + cr * sc.cos_) >> 20;
+        }
+    };
 
 } // namespace
 
@@ -414,6 +412,7 @@ void NTSCEncoder::setLinex4(int w, int line, const uint16_t *img)
 }
 #endif
 
+#if 0
 namespace
 {
 using WorkerFunc = void (*)(void *);
@@ -447,13 +446,14 @@ void startWorker()
 {
     register_core1(worker, nullptr);
 }
+#endif
 
 namespace
 {
 
-template <class F>
-void setImageImpl(int w, int h, int pitch, const uint16_t *img, int lineOffset, const F &lineFunc)
-{
+    template <class F>
+    void setImageImpl(int w, int h, int pitch, const uint16_t *img, int lineOffset, const F &lineFunc)
+    {
 #if 0
     int line = lineOffset;
     for (int i = 0; i < h; ++i)
@@ -463,42 +463,43 @@ void setImageImpl(int w, int h, int pitch, const uint16_t *img, int lineOffset, 
         img += pitch;
     }
 #else
-    struct Param
-    {
-        const F &func_;
-        int w, h, pitch, lineOffset;
-        const uint16_t *img;
-        volatile bool done = false;
-
-        int proc()
+        struct Param
         {
-//            auto prevClk = getClockCounter();
+            const F &func_;
+            int w, h, pitch, lineOffset;
+            const uint16_t *img;
+            volatile bool done = false;
 
-            int line = lineOffset;
-            for (int i = 0; i < h; i += 2)
+            int proc()
             {
-                func_(w, line, img);
-                line += 2;
-                img += pitch * 2;
+                //            auto prevClk = getClockCounter();
+
+                int line = lineOffset;
+                for (int i = 0; i < h; i += 2)
+                {
+                    func_(w, line, img);
+                    line += 2;
+                    img += pitch * 2;
+                }
+                done = true;
+
+                //            auto dt = clockToMicroSec(getClockCounter() - prevClk);
+                //            printf("core %d: %dus\n", (int)current_coreid(), dt);
+
+                return 0;
             }
-            done = true;
+        };
 
-//            auto dt = clockToMicroSec(getClockCounter() - prevClk);
-//            printf("core %d: %dus\n", (int)current_coreid(), dt);
+        auto p0 = Param{lineFunc, w, h, pitch, lineOffset + 0, img + pitch * 0};
+        auto p1 = Param{lineFunc, w, h, pitch, lineOffset + 1, img + pitch * 1};
 
-            return 0;
-        }
-    };
-
-    auto p0 = Param{lineFunc, w, h, pitch, lineOffset + 0, img + pitch * 0};
-    auto p1 = Param{lineFunc, w, h, pitch, lineOffset + 1, img + pitch * 1};
-
-    setWorkload([](void *p) { ((Param *)p)->proc(); }, &p1);
-    p0.proc();
-    while (!p1.done)
-        ;
+        //        setWorkload([](void *p) { ((Param *)p)->proc(); }, &p1);
+        addWorkload([&] { p1.proc(); });
+        p0.proc();
+        while (!p1.done)
+            ;
 #endif
-}
+    }
 
 } // namespace
 

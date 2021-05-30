@@ -5,10 +5,33 @@
     "default_disk1": "",
     "ram_pages": 4,
     "vram_pages": 2,
+    "//board": "AMIGO_TFT",
+    "board": "AMIGO_IPS",
     "video": "LCD",
     "//video": "NTSC",
     "flip_lcd": false,
-    "audio_enable_pin": 32,
+    "//te_pin": 19,
+    "ps2": {
+        "enable": false,
+        "clk_pin": 10,
+        "dat_pin": 11
+    },
+    "pspad": {
+        "enable": true,
+        "sck_pin": 28,
+        "sel_pin": 29,
+        "dat_pin": 30,
+        "cmd_pin": 8
+    },
+    "cardkb": {
+        "enable": false,
+        "i2c_num": 1
+    },
+    "i2c1": {
+        "enable": false,
+        "scl_pin": 19,
+        "sda_pin": 17
+    },
     "//audio_enable_pin": 2,
     "volume": 2
 }

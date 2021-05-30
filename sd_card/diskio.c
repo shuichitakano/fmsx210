@@ -7,12 +7,11 @@
 /* storage control modules to the FatFs module with a defined API.       */
 /*-----------------------------------------------------------------------*/
 
-#include "diskio.h"		/* FatFs lower layer API */
+#include "diskio.h" /* FatFs lower layer API */
 #include "sdcard.h"
 
 /* Definitions of physical drive number for each drive */
-#define M0		0	/* Example: Map MMC/SD card to physical drive 0 */
-
+#define M0 0 /* Example: Map MMC/SD card to physical drive 0 */
 
 /*-----------------------------------------------------------------------*/
 /* Get Drive Status                                                      */
@@ -23,20 +22,16 @@ DSTATUS disk_status(BYTE pdrv)
 	return 0;
 }
 
-
-
 /*-----------------------------------------------------------------------*/
 /* Inidialize a Drive                                                    */
 /*-----------------------------------------------------------------------*/
 
 DSTATUS disk_initialize(BYTE pdrv)
 {
-	if (sd_init() == 0)
+	if (is_sd_initialized())
 		return 0;
 	return STA_NOINIT;
 }
-
-
 
 /*-----------------------------------------------------------------------*/
 /* Read Sector(s)                                                        */
@@ -49,8 +44,6 @@ DRESULT disk_read(BYTE pdrv, BYTE *buff, DWORD sector, UINT count)
 	return RES_ERROR;
 }
 
-
-
 /*-----------------------------------------------------------------------*/
 /* Write Sector(s)                                                       */
 /*-----------------------------------------------------------------------*/
@@ -62,8 +55,6 @@ DRESULT disk_write(BYTE pdrv, const BYTE *buff, DWORD sector, UINT count)
 	return RES_ERROR;
 }
 
-
-
 /*-----------------------------------------------------------------------*/
 /* Miscellaneous Functions                                               */
 /*-----------------------------------------------------------------------*/
@@ -72,7 +63,8 @@ DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void *buff)
 {
 	DRESULT res = RES_ERROR;
 
-	switch (cmd) {
+	switch (cmd)
+	{
 	/* Make sure that no pending write process */
 	case CTRL_SYNC:
 		res = RES_OK;

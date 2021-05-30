@@ -121,14 +121,12 @@ private:
         uint16_t y;
         int8_t cb, cr;
 
-        inline int compute(const SinCos& sc) const
+        inline int compute(const SinCos &sc) const
         {
             return (y + cb * sc.sin_ + cr * sc.cos_) >> 6;
         }
     };
     std::vector<DiffColor> colorLUT_;
 };
-
-void startWorker();
 
 #endif /* _59D6FE19_2134_1651_B97A_A42DFABF74CA */

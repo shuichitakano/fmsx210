@@ -14,7 +14,7 @@ extern "C"
 
     int getAudioBufferFree();
     void writeAudioData(const int16_t *p, int count);
-    void initAudio(uint32_t freq);
+    void initAudio(uint32_t freq, uint8_t amigo);
 
 #ifdef __cplusplus
 }
