@@ -16,118 +16,118 @@
 namespace
 {
 
-constexpr const char *TAG = "STDFILE";
+    constexpr const char *TAG = "STDFILE";
 
-template <class T, int N>
-class Allocator
-{
-    std::array<T, N> objs_;
-    uint32_t freeObjMask_ = (1 << N) - 1;
-
-public:
-    int allocate()
+    template <class T, int N>
+    class Allocator
     {
-        for (int i = 0; i < N; ++i)
+        std::array<T, N> objs_;
+        uint32_t freeObjMask_ = (1 << N) - 1;
+
+    public:
+        int allocate()
         {
-            if (freeObjMask_ & (1 << i))
+            for (int i = 0; i < N; ++i)
             {
-                freeObjMask_ &= ~(1 << i);
-                return i;
+                if (freeObjMask_ & (1 << i))
+                {
+                    freeObjMask_ &= ~(1 << i);
+                    return i;
+                }
             }
+            return -1;
         }
-        return -1;
-    }
 
-    void free(int i)
+        void free(int i)
+        {
+            freeObjMask_ |= (1 << i);
+        }
+
+        void free(T *p)
+        {
+            free(p - objs_.data());
+        }
+
+        int getIndex(T *p)
+        {
+            return p - objs_.data();
+        }
+
+        T &get(int i)
+        {
+            return objs_[i];
+        }
+
+        static Allocator &instance()
+        {
+            static Allocator inst;
+            return inst;
+        }
+    };
+
+    constexpr int FD_OFFSET = 1024;
+    constexpr int MAX_FILES = 8;
+    constexpr int MAX_DIRS = 8;
+
+    std::array<dirent, MAX_DIRS> dirents_;
+
+    Allocator<FIL, MAX_FILES> &getFileAllocator()
     {
-        freeObjMask_ |= (1 << i);
+        return Allocator<FIL, MAX_FILES>::instance();
     }
 
-    void free(T *p)
+    Allocator<DIR, MAX_FILES> &getDirAllocator()
     {
-        free(p - objs_.data());
+        return Allocator<DIR, MAX_DIRS>::instance();
     }
 
-    int getIndex(T *p)
+    int allocateFile()
     {
-        return p - objs_.data();
+        auto i = getFileAllocator().allocate();
+        if (i < 0)
+        {
+            LOGV(TAG, "file overflow");
+            return -1;
+        }
+        return i + FD_OFFSET;
     }
 
-    T &get(int i)
+    void freeFile(int fp)
     {
-        return objs_[i];
+        fp -= FD_OFFSET;
+        getFileAllocator().free(fp);
     }
 
-    static Allocator &instance()
+    FIL *getFile(int fp)
     {
-        static Allocator inst;
-        return inst;
+        return &getFileAllocator().get(fp - FD_OFFSET);
     }
-};
 
-constexpr int FD_OFFSET = 1024;
-constexpr int MAX_FILES = 8;
-constexpr int MAX_DIRS = 8;
-
-std::array<dirent, MAX_DIRS> dirents_;
-
-Allocator<FIL, MAX_FILES> &getFileAllocator()
-{
-    return Allocator<FIL, MAX_FILES>::instance();
-}
-
-Allocator<DIR, MAX_FILES> &getDirAllocator()
-{
-    return Allocator<DIR, MAX_DIRS>::instance();
-}
-
-int allocateFile()
-{
-    auto i = getFileAllocator().allocate();
-    if (i < 0)
+    int allocateDir()
     {
-        LOGV(TAG, "file overflow");
-        return -1;
+        auto i = getDirAllocator().allocate();
+        if (i < 0)
+        {
+            LOGV(TAG, "dir overflow");
+            return -1;
+        }
+        return i;
     }
-    return i + FD_OFFSET;
-}
 
-void freeFile(int fp)
-{
-    fp -= FD_OFFSET;
-    getFileAllocator().free(fp);
-}
-
-FIL *getFile(int fp)
-{
-    return &getFileAllocator().get(fp - FD_OFFSET);
-}
-
-int allocateDir()
-{
-    auto i = getDirAllocator().allocate();
-    if (i < 0)
+    void freeDir(int i)
     {
-        LOGV(TAG, "dir overflow");
-        return -1;
+        getDirAllocator().free(i);
     }
-    return i;
-}
 
-void freeDir(int i)
-{
-    getDirAllocator().free(i);
-}
+    void freeDir(DIR *d)
+    {
+        getDirAllocator().free(d);
+    }
 
-void freeDir(DIR *d)
-{
-    getDirAllocator().free(d);
-}
-
-DIR *getDir(int i)
-{
-    return &getDirAllocator().get(i);
-}
+    DIR *getDir(int i)
+    {
+        return &getDirAllocator().get(i);
+    }
 
 } // namespace
 

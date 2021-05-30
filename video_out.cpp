@@ -11,112 +11,112 @@
 namespace
 {
 
-NTSCEncoder NTSC_;
+    NTSCEncoder NTSC_;
 
-enum class Stage
-{
-    FIELD1_VSYNC = 0,
-    FIELD1_VIDEO,
-    FIELD2_VSYNC,
-    FIELD2_VIDEO,
-    FIELD3_VSYNC,
-    FIELD3_VIDEO,
-    FIELD4_VSYNC,
-    FIELD4_VIDEO,
-};
+    enum class Stage
+    {
+        FIELD1_VSYNC = 0,
+        FIELD1_VIDEO,
+        FIELD2_VSYNC,
+        FIELD2_VIDEO,
+        FIELD3_VSYNC,
+        FIELD3_VIDEO,
+        FIELD4_VSYNC,
+        FIELD4_VIDEO,
+    };
 
-Stage nextStage_{};
-bool isInterlace_ = false;
+    Stage nextStage_{};
+    bool isInterlace_ = false;
 
-volatile bool vblanking_ = false;
-volatile int writeLineOffset_ = 0;
+    volatile bool vblanking_ = false;
+    volatile int writeLineOffset_ = 0;
 
 #if 1
 
-const uint32_t *nextTransferData_ = nullptr;
-uint32_t nextTransferSize_ = 0;
+    const uint32_t *nextTransferData_ = nullptr;
+    uint32_t nextTransferSize_ = 0;
 
-void transfer()
-{
-    auto &dma = SPIDMA::instance();
-    if (nextTransferData_)
+    void transfer()
     {
-        dma._transferBE(nextTransferData_, nextTransferSize_);
-    }
-    else
-    {
-        dma._transferBE(&nextTransferSize_, 1); // dummy
-    }
-
-    bool is4Phase = NTSC_.is4Phase();
-    int field = (int)nextStage_ >> 1;
-    bool vsync = (((int)nextStage_) & 1) == 0;
-    bool oddField = field & 1;
-    bool phase = is4Phase ? ((int)nextStage_ + 1) >> 1 : 0;
-
-    nextStage_ = (Stage)(((int)nextStage_ + 1) & 7);
-    vblanking_ = !vsync; // 次の転送単位なので反転
-    writeLineOffset_ = NTSC_.getWriteLineOffset(phase);
-
-    bool interlaced = isInterlace_ || is4Phase;
-
-    if (vsync)
-    {
-        auto &v = NTSC_.getVSyncBuffer(oddField && interlaced);
-        nextTransferData_ = v.data();
-        nextTransferSize_ = v.size();
-    }
-    else
-    {
-        auto &v = NTSC_.getVideoBuffer();
-        if (interlaced)
+        auto &dma = SPIDMA::instance();
+        if (nextTransferData_)
         {
-            nextTransferData_ = v.data() + NTSC_.getVideoOffset(phase);
-            nextTransferSize_ = NTSC_.getVideoDataSize(oddField);
+            dma._transferBE(nextTransferData_, nextTransferSize_);
         }
         else
         {
+            dma._transferBE(&nextTransferSize_, 1); // dummy
+        }
+
+        bool is4Phase = NTSC_.is4Phase();
+        int field = (int)nextStage_ >> 1;
+        bool vsync = (((int)nextStage_) & 1) == 0;
+        bool oddField = field & 1;
+        bool phase = is4Phase ? ((int)nextStage_ + 1) >> 1 : 0;
+
+        nextStage_ = (Stage)(((int)nextStage_ + 1) & 7);
+        vblanking_ = !vsync; // 次の転送単位なので反転
+        writeLineOffset_ = NTSC_.getWriteLineOffset(phase);
+
+        bool interlaced = isInterlace_ || is4Phase;
+
+        if (vsync)
+        {
+            auto &v = NTSC_.getVSyncBuffer(oddField && interlaced);
             nextTransferData_ = v.data();
-            nextTransferSize_ = NTSC_.getVideoDataSizeNonInterlace();
-        }
-    }
-}
-#else
-void transfer()
-{
-    bool is4Phase = NTSC_.is4Phase();
-    auto &dma = SPIDMA::instance();
-    int field = (int)nextStage_ >> 1;
-    bool vsync = (((int)nextStage_) & 1) == 0;
-    bool oddField = field & 1;
-    bool phase = is4Phase ? ((int)nextStage_ + 1) >> 1 : 0;
-
-    nextStage_ = (Stage)(((int)nextStage_ + 1) & 7);
-    vblanking_ = vsync;
-    writeLineOffset_ = NTSC_.getWriteLineOffset(phase);
-
-    bool interlaced = isInterlace_ || is4Phase;
-
-    if (vsync)
-    {
-        auto &v = NTSC_.getVSyncBuffer(oddField && interlaced);
-        dma._transferBE(v.data(), v.size());
-    }
-    else
-    {
-        auto &v = NTSC_.getVideoBuffer();
-        if (interlaced)
-        {
-            dma._transferBE(v.data() + NTSC_.getVideoOffset(phase),
-                            NTSC_.getVideoDataSize(oddField));
+            nextTransferSize_ = v.size();
         }
         else
         {
-            dma._transferBE(v.data(),
-                            NTSC_.getVideoDataSizeNonInterlace());
+            auto &v = NTSC_.getVideoBuffer();
+            if (interlaced)
+            {
+                nextTransferData_ = v.data() + NTSC_.getVideoOffset(phase);
+                nextTransferSize_ = NTSC_.getVideoDataSize(oddField);
+            }
+            else
+            {
+                nextTransferData_ = v.data();
+                nextTransferSize_ = NTSC_.getVideoDataSizeNonInterlace();
+            }
         }
     }
-}
+#else
+    void transfer()
+    {
+        bool is4Phase = NTSC_.is4Phase();
+        auto &dma = SPIDMA::instance();
+        int field = (int)nextStage_ >> 1;
+        bool vsync = (((int)nextStage_) & 1) == 0;
+        bool oddField = field & 1;
+        bool phase = is4Phase ? ((int)nextStage_ + 1) >> 1 : 0;
+
+        nextStage_ = (Stage)(((int)nextStage_ + 1) & 7);
+        vblanking_ = vsync;
+        writeLineOffset_ = NTSC_.getWriteLineOffset(phase);
+
+        bool interlaced = isInterlace_ || is4Phase;
+
+        if (vsync)
+        {
+            auto &v = NTSC_.getVSyncBuffer(oddField && interlaced);
+            dma._transferBE(v.data(), v.size());
+        }
+        else
+        {
+            auto &v = NTSC_.getVideoBuffer();
+            if (interlaced)
+            {
+                dma._transferBE(v.data() + NTSC_.getVideoOffset(phase),
+                                NTSC_.getVideoDataSize(oddField));
+            }
+            else
+            {
+                dma._transferBE(v.data(),
+                                NTSC_.getVideoDataSizeNonInterlace());
+            }
+        }
+    }
 #endif
 
 } // namespace
@@ -133,8 +133,6 @@ void initVideo(uint32_t pll0Clock, uint32_t dotClock, int scPerLinex2,
     //    NTSC_.makeColorBar();
 
     NTSC_.makeColotLUT(5, 6, 5, 11, 5, 0);
-
-    startWorker(); // かり
 }
 
 void startVideoTransfer()

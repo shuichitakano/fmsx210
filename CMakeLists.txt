@@ -46,6 +46,12 @@ add_source_files(
     chrono.cpp
     ps2_keyboard.cpp
     led.cpp
+    es8374.cpp
+    cardkb.cpp
+    worker.cpp
+    spi_manager.cpp
+    pspad.cpp
+    sw_spi.cpp
     )
 
 include(${SDK_ROOT}/cmake/executable.cmake)

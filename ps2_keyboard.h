@@ -38,6 +38,8 @@ protected:
     void callback();
 
 private:
+    bool enabled_ = false;
+
     uint8_t clkGPIO_;
     uint8_t datGPIO_;
     int prio_;

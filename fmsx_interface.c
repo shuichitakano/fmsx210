@@ -15,6 +15,8 @@
 #include "video_out.h"
 #include "led.h"
 #include "ps2_keyboard.h"
+#include "cardkb.h"
+#include "pspad.h"
 #include <gpiohs.h>
 #include <fpioa.h>
 #include <sleep.h>
@@ -64,6 +66,7 @@ int fetchButtons()
 
   int edge = (buttonState_ ^ v) & v;
   buttonState_ = v;
+  //  printf("s %d\n", buttonState_);
   return edge;
 }
 
@@ -119,6 +122,8 @@ int start_fMSX(const char *rom0, const char *rom1,
                const char *disk0, const char *disk1,
                int ramPages, int vramPages, int volume)
 {
+  soundVolume = volume;
+
   if (!InitMachine())
   {
     return -1;
@@ -152,7 +157,6 @@ int start_fMSX(const char *rom0, const char *rom1,
 
   RAMPages = ramPages;
   VRAMPages = vramPages;
-  soundVolume = volume;
 
   UPeriod = 100;
   Verbose = 1;
@@ -179,6 +183,7 @@ void TrashAudio(void)
 
 void setVolume(int v)
 {
+  printf("vol %d\n", v);
   int SndSwitch = (1 << MAXCHANNELS) - 1;
   SetChannels(v, SndSwitch);
 }
@@ -251,6 +256,7 @@ int ShowVideo(void)
 
   if (videoOutMode == VIDEOOUTMODE_LCD)
   {
+#if 1
     while (1)
     {
       uint64_t cy = read_cycle();
@@ -262,8 +268,28 @@ int ShowVideo(void)
         break;
       }
     }
-    lcdDrawHScaleImage(0, (240 - img->H) >> 1, 320,
-                       img->W, img->H, img->L, img->Data);
+#endif
+    if (lcdIsQVGA())
+    {
+      lcdDrawHScaleImage(0, (240 - img->H) >> 1, 320,
+                         img->W, img->H, img->L, img->Data);
+    }
+    else
+    {
+      if (img->W <= 272)
+      {
+        int x0 = (480 - img->W * 3 / 2) >> 1;
+        int y0 = (320 - img->H * 4 / 3) >> 1;
+        lcdDrawFixScaleImage320(x0, y0, img->W, img->H, img->L, img->Data);
+      }
+      else
+      {
+        int x0 = (480 - img->W * 3 / 4) >> 1;
+        int y0 = (320 - img->H * 4 / 3) >> 1;
+        lcdDrawFixScaleImage320W(x0, y0, img->W, img->H, img->L, img->Data);
+        //      lcdDrawScaleImage(0, 0, 480, 320, img->W, img->H, img->L, img->Data);
+      }
+    }
   }
   else
   {
@@ -284,7 +310,7 @@ int ShowVideo(void)
     loadPercent = (int)(delta * 100 / frameCycles_);
   }
   setRGBLED(loadPercent <= 101 ? LEDCOLOR_GREEN : LEDCOLOR_RED);
-  //    printf("%d%%\n", loadPercent);
+  printf("%d%%\n", loadPercent);
   return 1;
 }
 
@@ -308,7 +334,10 @@ unsigned int WriteAudio(sample *Data, unsigned int Length)
 
 unsigned int Joystick(void)
 {
-  return 0;
+  updatePSPad();
+
+  SETJOYTYPE(0, isPSPADDetected() ? JOY_STICK : JOY_NONE);
+  return makeJoyStateFromPSPad();
 }
 
 void Keyboard(void)
@@ -355,6 +384,10 @@ void Keyboard(void)
     }
     KeyState[i] = v;
   }
+
+  fetchCardKB();
+  getCardKBKeyState((uint8_t *)KeyState);
+  getPSPADKeyState((uint8_t *)KeyState);
 
   int uiKeys = fetchUIKeys();
   int buttons = fetchButtons();
